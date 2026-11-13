@@ -91,6 +91,8 @@
   }
   .hot.tip-up[data-tip]:hover::before { top: auto; bottom: calc(100% + 6px); }
   .hot.tip-left[data-tip]:hover::before { left: auto; right: 0; transform: none; }
+  .hot.used[data-tip]::before { display: none; }                       /* label goes away once the button is pressed */
+  @media (hover: none) { .hot[data-tip]::before { display: none; } }  /* no hover labels on touchscreens */
 
   /* ---------- little pink "window" used for the rating and the intro ---------- */
   .win { background: #ffe3f2; border: 3px solid var(--hot); box-shadow: 6px 6px 0 rgba(122,18,80,.3); }
@@ -547,6 +549,10 @@ $("#photoBtn").onclick = savePhoto;
 $("#saveBtn").onclick = saveLook;
 $("#loadBtn").onclick = loadLook;
 $("#musicBtn").onclick = toggleMusic;
+document.querySelectorAll(".hot[data-tip]").forEach(h => {           // hide a button's hover label once it is pressed
+  h.addEventListener("pointerdown", () => h.classList.add("used"));
+  h.addEventListener("pointerleave", () => h.classList.remove("used"));
+});
 $("#upBtn").onclick = () => tray.scrollBy({ top: -340 });
 $("#downBtn").onclick = () => tray.scrollBy({ top: 340 });
 
