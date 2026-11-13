@@ -42,6 +42,7 @@
   #doll img, #doll canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   #doll img.layer { animation: pop .3s ease-out; }
   #doll img.layer.settled { animation: none; }
+  #doll img.layer.onbase { display: none; }
   @keyframes pop { 0% { transform: scale(1.04); opacity: .85; filter: brightness(1.6); } 100% { transform: none; opacity: 1; filter: none; } }
   #place-name {
     position: absolute; left: 14px; bottom: 12px; padding: 4px 10px; background: rgba(255,255,255,.8);
@@ -196,12 +197,12 @@ const MUSIC_VOLUME = 55;                     // 0-100
 const CANVAS_W = 971, CANVAS_H = 1620;
 const FRAME = { src: "assets/ui-frame.webp", scene: [12, 200, 940, 807] };   // where the scene sits on the frame picture
 
-const SLOTS = { shoes: 1, bottom: 2, top: 3, dress: 3, coat: 4, bag: 5, eyes: 6 };   // draw order (higher = on top)
+const SLOTS = { tights: 0, shoes: 1, bottom: 2, top: 3, dress: 3, coat: 4, bag: 5, eyes: 6 };   // draw order (higher = on top)
 
 // the four round buttons on the frame, and which kinds of item each one shows
 const CATEGORIES = {
   tops:    [["top", "Tops"], ["dress", "Dresses"], ["coat", "Coats"]],
-  bottoms: [["bottom", "Bottoms"]],
+  bottoms: [["bottom", "Bottoms"], ["tights", "Tights"]],
   shoes:   [["shoes", "Shoes"]],
   extras:  [["bag", "Bags"], ["eyes", "Shades"]],
 };
@@ -220,14 +221,24 @@ const ITEMS = [
   { id: "top-blossom",         slot: "top",    name: "Blossom Cami",   box: [358, 321, 242, 484], thumb: "assets/thumbs/top-blossom.png" },
   { id: "top-tie-neck",        slot: "top",    name: "Tie-Neck Top",   box: [198, 474, 574, 671], hideTank: true, thumb: "assets/thumbs/top-tie-neck.png" },
   { id: "top-keyhole",         slot: "top",    name: "Keyhole Top",    box: [207, 511, 557, 598], hideTank: true, thumb: "assets/thumbs/top-keyhole.png" },
+  { id: "top-cream-wrap", slot: "top", name: "Cream V-Neck", box: [89, 433, 792, 754], hideTank: true, thumb: "assets/thumbs/top-cream-wrap.png" },
+  { id: "top-swan", slot: "top", name: "Swan Tee", box: [35, 441, 900, 737], hideTank: true, thumb: "assets/thumbs/top-swan.png" },
+  { id: "top-crop-blazer", slot: "top", name: "Crop Blazer", box: [35, 476, 900, 667], hideTank: true, thumb: "assets/thumbs/top-crop-blazer.png" },
+  { id: "top-red-buckle", slot: "top", name: "Buckle Top", box: [35, 253, 900, 1113], hideTank: true, thumb: "assets/thumbs/top-red-buckle.png" },
+  { id: "top-ruffle-blouse", slot: "top", name: "Ruffle Blouse", box: [126, 370, 719, 879], hideTank: true, thumb: "assets/thumbs/top-ruffle-blouse.png" },
+  { id: "dress-violet", slot: "dress", name: "Violet Dress", box: [142, 226, 687, 1168], hideTank: true, thumb: "assets/thumbs/dress-violet.png" },
   { id: "bottom-flare-jeans",  slot: "bottom", name: "Flare Jeans",    box: [276, 668, 412, 931], hide: [330, 735, 640, 1540], thumb: "assets/thumbs/bottom-flare-jeans.png" },
   { id: "bottom-denim-mini",   slot: "bottom", name: "Denim Mini",     box: [344, 677, 282, 155], thumb: "assets/thumbs/bottom-denim-mini.png" },
   { id: "bottom-pleated-mini", slot: "bottom", name: "Pleated Mini",   box: [324, 680, 322, 172], thumb: "assets/thumbs/bottom-pleated-mini.png" },
   { id: "bottom-ruffle-skirt", slot: "bottom", name: "Ruffle Skirt",   box: [318, 653, 337, 797], thumb: "assets/thumbs/bottom-ruffle-skirt.png" },
   { id: "bottom-capri-jeans",  slot: "bottom", name: "Cuffed Capris",  box: [255, 378, 460, 863], thumb: "assets/thumbs/bottom-capri-jeans.png" },
   { id: "bottom-denim-skirt",  slot: "bottom", name: "Denim Skirt",    box: [144, 404, 683, 812], thumb: "assets/thumbs/bottom-denim-skirt.png" },
+  { id: "bottom-floral-skirt", slot: "bottom", name: "Garden Skirt", box: [133, 420, 704, 780], thumb: "assets/thumbs/bottom-floral-skirt.png" },
+  { id: "bottom-rose-skirt", slot: "bottom", name: "Rose Skirt", box: [198, 430, 575, 760], thumb: "assets/thumbs/bottom-rose-skirt.png" },
+  { id: "tights-sheer-blue", slot: "tights", name: "Sheer Tights", box: [295, 132, 381, 1355], thumb: "assets/thumbs/tights-sheer-blue.png" },
   { id: "coat-fur",            slot: "coat",   name: "Fur Trim Coat",  box: [223, 270, 510, 888], back: true, clip: "assets/coat-fur-clip.png" },
   { id: "coat-moto-jacket",    slot: "coat",   name: "Moto Jacket",    box: [145, 451, 680, 717], clip: "assets/coat-moto-jacket-clip.png", thumb: "assets/thumbs/coat-moto-jacket.png" },
+  { id: "coat-tie-wrap", slot: "coat", name: "Tie Wrap", box: [36, 360, 899, 900], clip: "assets/coat-tie-wrap-clip.png", thumb: "assets/thumbs/coat-tie-wrap.png" },
   { id: "shoes-buckle-boots",  slot: "shoes",  name: "Buckle Boots",   box: [299, 1115, 348, 487], hide: [0, 1135, 971, 1620], thumb: "assets/thumbs/shoes-buckle-boots.png" },
   { id: "shoes-western-boots", slot: "shoes",  name: "Suede Boots",    box: [319, 1338, 295, 266], hide: [0, 1362, 971, 1620] },
   { id: "shoes-sandals",       slot: "shoes",  name: "Strappy Sandals", box: [337, 1489, 257, 117] },
@@ -319,6 +330,8 @@ function drawBase() {
   const on = Object.values(worn).filter(ready);
   if (worn.bottom && ready(worn.bottom) && patchImg.naturalWidth) bctx.drawImage(patchImg, 0, 0, CANVAS_W, CANVAS_H);
   if (on.some(id => itemById(id).hideTank) && tankPatchImg.naturalWidth) bctx.drawImage(tankPatchImg, 0, 0, CANVAS_W, CANVAS_H);
+  // tights are painted straight onto her legs, so boots and jeans can erase them along with the legs
+  if (worn.tights && ready(worn.tights)) bctx.drawImage(doll.querySelector(`img[data-key="${worn.tights}"]`), 0, 0, CANVAS_W, CANVAS_H);
   for (const id of on) {
     const h = itemById(id).hide;
     if (h) bctx.clearRect(h[0], h[1], h[2] - h[0], h[3] - h[1]);
@@ -340,6 +353,7 @@ function renderDoll() {
     img.style.webkitMaskImage = img.style.maskImage = mask;
     img.style.webkitMaskSize = img.style.maskSize = "100% 100%";
     img.dataset.clip = mask ? clip : "";
+    img.classList.toggle("onbase", slot === "tights");
     if (behind) doll.insertBefore(img, baseCanvas); else doll.appendChild(img);  // moves existing nodes into order
   };
   const order = Object.entries(worn).sort((a, b) => SLOTS[a[0]] - SLOTS[b[0]]).map(([, id]) => itemById(id));
@@ -404,7 +418,8 @@ function randomize() {
   clearAll();
   const pick = slot => { const a = ITEMS.filter(i => i.slot === slot); return a.length ? a[Math.floor(Math.random() * a.length)].id : null; };
   const put = (slot, chance = 1) => { const id = Math.random() < chance ? pick(slot) : null; if (id) worn[slot] = id; };
-  put("top"); put("bottom"); put("shoes"); put("bag", 0.6); put("coat", 0.3); put("eyes", 0.4);
+  if (Math.random() < 0.2) put("dress"); else { put("top"); put("bottom"); }
+  put("tights", 0.2); put("shoes"); put("bag", 0.6); put("coat", 0.3); put("eyes", 0.4);
   setBg(BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)].id);
   sfx.magic(); burstAtDoll(20);
   renderDoll(); renderTray(true);
@@ -448,6 +463,7 @@ async function savePhoto() {
     } else x.drawImage(await load(FRAME.src), fx, fy, W, H, 0, 0, W, H);       // the frame's own backdrop
     const dh = 780, dw = dh * CANVAS_W / CANVAS_H, dx = (W - dw) / 2, dy = H - dh - 12;
     for (const el of doll.children) {             // back layers, doll canvas, clothes - in order
+      if (el.classList.contains("onbase")) continue;   // already painted on the doll canvas
       let src = el;
       if (el.dataset && el.dataset.clip) {         // tucked-in layer: cut it to the coat silhouette first
         const t = document.createElement("canvas"); t.width = CANVAS_W; t.height = CANVAS_H;
