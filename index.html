@@ -70,6 +70,11 @@
   .item .lbl { position: absolute; left: 0; right: 0; bottom: 7px; text-align: center; font: 700 13px Tahoma, Verdana, sans-serif; color: var(--ink); }
 
   /* ---------- invisible buttons sitting on top of the frame's own icons ---------- */
+  /* working scrollbar: covers the pill painted on the frame and moves a copy of it */
+  #bar { position: absolute; left: 1490px; top: 336px; width: 33px; height: 548px; background: #fcd0e9; cursor: pointer; touch-action: none; }
+  #thumb { position: absolute; left: 2px; top: 0; width: 30px; height: 98px; cursor: grab; touch-action: none;
+           background: url(assets/ui-frame.webp) -1492px -337px / 1536px 1024px no-repeat; }
+  #thumb.drag { cursor: grabbing; }
   .hot { position: absolute; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 10px; }
   .hot:hover { background: rgba(255,255,255,.35); box-shadow: 0 0 0 2px rgba(230,35,140,.55); }
   .hot:active { background: rgba(230,35,140,.25); }
@@ -158,6 +163,7 @@
   <!-- scroll arrows and the bottom strip -->
   <button class="hot tip-left" id="upBtn"   style="left:1490px; top:296px; width:34px; height:36px" data-tip="Scroll up"></button>
   <button class="hot tip-left tip-up" id="downBtn" style="left:1490px; top:888px; width:34px; height:38px" data-tip="Scroll down"></button>
+  <div id="bar"><div id="thumb"></div></div>
   <button class="hot tip-up" id="prevPlace" style="left:976px;  top:940px; width:56px; height:50px" data-tip="Previous place"></button>
   <button class="hot tip-up tip-left" id="nextPlace" style="left:1460px; top:940px; width:56px; height:50px" data-tip="Next place"></button>
 
@@ -397,6 +403,7 @@ function renderTray(keepScroll) {
     t.style.backgroundPosition = `${(r.w - w * s) / 2 - x * s}px ${(r.h - h * s) / 2 - y * s}px`;
   });
   tray.style.scrollBehavior = "auto"; tray.scrollTop = keepScroll ? top : 0; tray.style.scrollBehavior = "";
+  if (typeof syncBar === "function") syncBar();
 }
 
 function setBg(id) {
@@ -534,6 +541,29 @@ $("#loadBtn").onclick = loadLook;
 $("#musicBtn").onclick = toggleMusic;
 $("#upBtn").onclick = () => tray.scrollBy({ top: -340 });
 $("#downBtn").onclick = () => tray.scrollBy({ top: 340 });
+
+/* the pink pill: drag it, or click the track above / below it */
+const bar = $("#bar"), thumb = $("#thumb");
+const barRoom = () => bar.clientHeight - thumb.offsetHeight, trayRoom = () => tray.scrollHeight - tray.clientHeight;
+function syncBar() { thumb.style.top = (trayRoom() > 0 ? tray.scrollTop / trayRoom() * barRoom() : 0) + "px"; }
+tray.addEventListener("scroll", syncBar);
+let grab = null;
+thumb.addEventListener("pointerdown", e => {
+  grab = { y: e.clientY, top: tray.scrollTop }; thumb.setPointerCapture(e.pointerId); thumb.classList.add("drag"); e.preventDefault(); e.stopPropagation();
+});
+thumb.addEventListener("pointermove", e => {
+  if (!grab) return;
+  const scale = bar.getBoundingClientRect().height / bar.clientHeight;      // the stage is scaled to fit the window
+  tray.style.scrollBehavior = "auto";
+  tray.scrollTop = grab.top + (e.clientY - grab.y) / scale / barRoom() * trayRoom();
+  tray.style.scrollBehavior = "";
+});
+const drop = () => { grab = null; thumb.classList.remove("drag"); };
+thumb.addEventListener("pointerup", drop); thumb.addEventListener("pointercancel", drop);
+bar.addEventListener("pointerdown", e => {
+  if (e.target !== bar) return;
+  tray.scrollBy({ top: e.clientY < thumb.getBoundingClientRect().top ? -340 : 340 });
+});
 stage.addEventListener("pointerdown", e => { const [x, y] = stagePoint(e.clientX, e.clientY); burst(x, y, 6); });
 
 /* scale the fixed-size frame to fit any window, like an embedded Flash movie */
