@@ -217,6 +217,8 @@ const CATEGORIES = {
      hide: [x0, y0, x1, y1]  erases that part of the doll while the item is on
                              (e.g. her bare feet inside boots, legs inside jeans)
      back: true              the item also has an "<id>-back.png" drawn BEHIND the doll
+     hideMask: "file"        like hide, but erases the doll wherever that picture is solid
+                             (toes that would poke out beside a shoe)
      hideTank: true          paints skin over her pink tank (for tops that don't cover it)
      thumb: "file"           a different picture for the closet thumbnail
      clip: "file"            a silhouette; tops, dresses and bottoms are tucked inside it
@@ -253,7 +255,7 @@ const ITEMS = [
   { id: "shoes-western-boots", slot: "shoes",  name: "Suede Boots",    box: [319, 1338, 295, 266], hide: [0, 1362, 971, 1620] },
   { id: "shoes-sandals",       slot: "shoes",  name: "Strappy Sandals", box: [337, 1489, 257, 117] },
   { id: "shoes-slides",        slot: "shoes",  name: "Buckle Slides",  box: [333, 1530, 265, 77] },
-  { id: "shoes-ballet-flats", slot: "shoes", name: "Ballet Flats", box: [190, 704, 591, 212], hide: [0, 1482, 971, 1620], thumb: "assets/thumbs/shoes-ballet-flats.png" },
+  { id: "shoes-ballet-flats", slot: "shoes", name: "Ballet Flats", box: [190, 704, 591, 212], hideMask: "assets/shoes-ballet-flats-hide.png", thumb: "assets/thumbs/shoes-ballet-flats.png" },
   { id: "bag-piano",           slot: "bag",    name: "Piano Purse",    box: [411, 323, 250, 491] },
   { id: "bag-floral",          slot: "bag",    name: "Flower Hobo",    box: [537, 314, 196, 453] },
   { id: "bag-saddle",          slot: "bag",    name: "Saddle Bag",     box: [531, 317, 171, 465] },
@@ -265,7 +267,6 @@ const ITEMS = [
   { id: "necklace-deer-pendant", slot: "necklace", name: "Deer Pendant", box: [223, 553, 525, 514], thumb: "assets/thumbs/necklace-deer-pendant.png" },
   { id: "necklace-orb-charm", slot: "necklace", name: "Orb Charm", box: [343, 700, 284, 220], thumb: "assets/thumbs/necklace-orb-charm.png" },
   { id: "necklace-orb-pendant", slot: "necklace", name: "Orb Pendant", box: [282, 666, 406, 287], thumb: "assets/thumbs/necklace-orb-pendant.png" },
-  { id: "earrings-crystal-hoops", slot: "earrings", name: "Crystal Hoops", box: [153, 665, 664, 289], thumb: "assets/thumbs/earrings-crystal-hoops.png" },
   { id: "earrings-silver-drops", slot: "earrings", name: "Silver Drops", box: [107, 706, 756, 208], thumb: "assets/thumbs/earrings-silver-drops.png" },
 ].map(it => ({ ...it, src: `assets/${it.id}.png`, backSrc: it.back ? `assets/${it.id}-back.png` : null }));
 const itemById = id => ITEMS.find(i => i.id === id);
@@ -338,6 +339,7 @@ const dollImg = new Image(), patchImg = new Image(), tankPatchImg = new Image();
 dollImg.onload = patchImg.onload = tankPatchImg.onload = () => drawBase();
 dollImg.src = "assets/doll.png"; patchImg.src = "assets/body-noshorts.png"; tankPatchImg.src = "assets/body-notank.png";
 
+const maskImgs = {};
 function drawBase() {
   bctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   if (!dollImg.naturalWidth) return;
@@ -352,6 +354,12 @@ function drawBase() {
   for (const id of on) {
     const h = itemById(id).hide;
     if (h) bctx.clearRect(h[0], h[1], h[2] - h[0], h[3] - h[1]);
+  }
+  for (const id of on) {                       // hideMask: erase the doll wherever that picture is solid
+    const src = itemById(id).hideMask; if (!src) continue;
+    const im = maskImgs[src] || (maskImgs[src] = Object.assign(new Image(), { onload: drawBase, src }));
+    if (!im.complete || !im.naturalWidth) continue;
+    bctx.globalCompositeOperation = "destination-out"; bctx.drawImage(im, 0, 0, CANVAS_W, CANVAS_H); bctx.globalCompositeOperation = "source-over";
   }
 }
 
@@ -573,7 +581,7 @@ addEventListener("resize", fit); fit();
 /* ===================== PRELOADER ===================== */
 (function preload() {
   const srcs = [FRAME.src, "assets/doll.png", "assets/body-noshorts.png", "assets/body-notank.png",
-    ...ITEMS.flatMap(i => [i.src, i.backSrc, i.clip, i.thumb].filter(Boolean)), ...BACKGROUNDS.filter(b => b.src).map(b => b.src)];
+    ...ITEMS.flatMap(i => [i.src, i.backSrc, i.clip, i.thumb, i.hideMask].filter(Boolean)), ...BACKGROUNDS.filter(b => b.src).map(b => b.src)];
   let done = 0;
   srcs.forEach(src => {
     const i = new Image();
