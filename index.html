@@ -121,13 +121,10 @@
   .spark.p { background: #ff7ac1; }
   @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2) rotate(120deg); opacity: 0; } }
 
-  /* hidden music player */
-  #music { position: absolute; left: 0; top: 0; width: 200px; height: 200px; opacity: .01; pointer-events: none; z-index: -1; }
 </style>
 </head>
 <body>
 <div id="stage">
-  <div id="music"><div id="ytplayer"></div></div>
   <div id="title">Dress Up</div>
 
   <div id="scene">
@@ -189,7 +186,7 @@
 <script>
 /* ===================== SETTINGS ===================== */
 const GAME_TITLE = "Dress Up";               // shown at the top left and on the loading window
-const MUSIC_VIDEO_ID = "vrHlQYr4sM0";        // YouTube video played (sound only) as background music
+const MUSIC_FILE = "assets/music.mp3";       // song looped as background music
 const MUSIC_VOLUME = 55;                     // 0-100
 
 /* ===================== GAME DATA =====================
@@ -285,31 +282,20 @@ const sfx = {
   magic: () => chime([784, 988, 1175, 1568, 1976]),
 };
 
-/* ===================== BACKGROUND MUSIC (YouTube player, sound only) ===================== */
-let yt = null, ytReady = false, musicOn = true, musicStarted = false, musicBroken = false;
-(function loadMusic() {
-  const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api";
-  s.onerror = () => { musicBroken = true; };
-  document.head.appendChild(s);
-})();
-window.onYouTubeIframeAPIReady = () => {
-  yt = new YT.Player("ytplayer", {
-    width: 200, height: 200, videoId: MUSIC_VIDEO_ID,
-    playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: MUSIC_VIDEO_ID, playsinline: 1, rel: 0 },
-    events: {
-      onReady: () => { ytReady = true; yt.setVolume(MUSIC_VOLUME); if (musicStarted && musicOn) yt.playVideo(); },
-      onStateChange: e => { if (e.data === YT.PlayerState.ENDED && musicOn) yt.playVideo(); },
-      onError: () => { musicBroken = true; toast("The song could not be played here"); $("#musicBtn").classList.add("off"); },
-    },
-  });
-};
-function startMusic() { musicStarted = true; if (ytReady && musicOn) yt.playVideo(); }
+/* ===================== BACKGROUND MUSIC (the MP3 in assets, looped) ===================== */
+let musicOn = true, musicStarted = false, musicBroken = false;
+const music = new Audio(MUSIC_FILE);
+music.loop = true; music.preload = "auto"; music.volume = MUSIC_VOLUME / 100;
+music.onerror = () => { musicBroken = true; $("#musicBtn").classList.add("off"); };
+function playMusic() { music.play().catch(() => {}); }
+function startMusic() { musicStarted = true; if (musicOn && !musicBroken) playMusic(); }
 function toggleMusic() {
   if (musicBroken) { toast("The song could not be played here"); return; }
   musicOn = !musicOn; $("#musicBtn").classList.toggle("off", !musicOn);
-  if (ytReady) { musicOn ? yt.playVideo() : yt.pauseVideo(); }
+  if (musicStarted) { musicOn ? playMusic() : music.pause(); }
   toast(musicOn ? "Music on" : "Music off");
 }
+
 
 /* ===================== THE DOLL ===================== */
 /* She is painted on a canvas so parts of her can be erased (feet inside boots,
