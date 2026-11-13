@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dress Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --hot: #e6238c; --pink: #ff8fc8; --pale: #ffd3ea; --ink: #7a1250; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #f7b6d9 repeating-linear-gradient(45deg, #f9c3e0 0 14px, #f7b6d9 14px 28px);
+    font-family: Tahoma, Verdana, Geneva, sans-serif; color: var(--ink);
+    display: grid; place-items: center; overflow: hidden; user-select: none;
+  }
+  /* The whole game is drawn on the 1536x1024 frame picture and scaled to fit the window */
+  #stage {
+    position: absolute; left: 50%; top: 50%; width: 1536px; height: 1024px;
+    background: url(assets/ui-frame.webp) 0 0 / 100% 100% no-repeat;
+    overflow: hidden; overflow: clip; transform-origin: center center;
+    box-shadow: 0 10px 40px rgba(122, 18, 80, .35);
+  }
+
+  /* ---------- title (empty bar at the top left of the frame) ---------- */
+  #title {
+    position: absolute; left: 30px; top: 22px; width: 500px; height: 64px;
+    display: flex; align-items: center;
+    font: 700 34px "Silkscreen", Tahoma, sans-serif; letter-spacing: 1px; color: #fff;
+    text-shadow: 2px 0 0 var(--hot), -2px 0 0 var(--hot), 0 2px 0 var(--hot), 0 -2px 0 var(--hot), 3px 3px 0 #8fd0f5;
+    white-space: nowrap; pointer-events: none;
+  }
+
+  /* ---------- the scene (big blue area of the frame) ---------- */
+  #scene { position: absolute; left: 12px; top: 200px; width: 940px; height: 807px; overflow: hidden; overflow: clip; }
+  #bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .35s; }
+  #bg.none { opacity: 0; }
+  #floor-shadow { position: absolute; left: 50%; bottom: 10px; width: 300px; height: 30px; transform: translateX(-50%); background: radial-gradient(ellipse, rgba(0,0,0,.28), transparent 70%); }
+  /* every doll layer is the same 971x1620 canvas stacked on top of each other */
+  #doll { position: absolute; height: 780px; aspect-ratio: 971 / 1620; left: 50%; bottom: 12px; transform: translateX(-50%); filter: drop-shadow(0 8px 6px rgba(0,0,0,.22)); }
+  #doll img, #doll canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #doll img.layer { animation: pop .3s ease-out; }
+  #doll img.layer.settled { animation: none; }
+  @keyframes pop { 0% { transform: scale(1.04); opacity: .85; filter: brightness(1.6); } 100% { transform: none; opacity: 1; filter: none; } }
+  #place-name {
+    position: absolute; left: 14px; bottom: 12px; padding: 4px 10px; background: rgba(255,255,255,.8);
+    border: 2px solid var(--hot); font: 700 15px "Silkscreen", Tahoma; color: var(--hot);
+  }
+
+  /* ---------- item tray (polka-dot area of the frame) ---------- */
+  #tray {
+    position: absolute; left: 966px; top: 292px; width: 520px; height: 634px; padding: 14px 16px 20px;
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 168px; gap: 12px; align-content: start;
+    overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth;
+  }
+  #tray::-webkit-scrollbar { display: none; }
+  .section { grid-column: 1 / -1; height: 30px; align-self: center; margin: -2px 0 -6px; font: 700 20px "Silkscreen", Tahoma; color: #fff; text-shadow: 2px 2px 0 var(--hot), -1px -1px 0 var(--hot), 1px -1px 0 var(--hot), -1px 1px 0 var(--hot); }
+  #tray .section { grid-row-end: span 1; }
+  #tray { grid-auto-rows: auto; }
+  .item {
+    position: relative; height: 168px; cursor: pointer; background: rgba(255,255,255,.88);
+    border: 3px solid #fff; outline: 2px solid #f9a8d4; border-radius: 12px; transition: transform .1s;
+  }
+  .item:hover { transform: translateY(-3px); outline-color: var(--hot); }
+  .item.on { outline: 4px solid var(--hot); background: #fff; box-shadow: 0 0 0 7px rgba(230,35,140,.25); }
+  .item.on::after { content: "ON"; position: absolute; top: 6px; right: 6px; padding: 1px 5px; background: var(--hot); color: #fff; font: 700 11px "Silkscreen", Tahoma; }
+  .thumb { position: absolute; inset: 10px 10px 30px; background-repeat: no-repeat; }
+  .item .lbl { position: absolute; left: 0; right: 0; bottom: 7px; text-align: center; font: 700 13px Tahoma, Verdana, sans-serif; color: var(--ink); }
+
+  /* ---------- invisible buttons sitting on top of the frame's own icons ---------- */
+  .hot { position: absolute; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 10px; }
+  .hot:hover { background: rgba(255,255,255,.35); box-shadow: 0 0 0 2px rgba(230,35,140,.55); }
+  .hot:active { background: rgba(230,35,140,.25); }
+  .hot.round { border-radius: 50%; }
+  .hot.round.active { box-shadow: 0 0 0 5px var(--hot), 0 0 14px 6px rgba(230,35,140,.5); }
+  .hot.off::after { /* music switched off: red slash across the note */
+    content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 5px; background: #e0143c; transform: rotate(45deg); border-radius: 3px;
+  }
+  /* old-school yellow tooltip */
+  .hot[data-tip]:hover::before {
+    content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 30;
+    background: #ffffe1; color: #000; border: 1px solid #000; padding: 3px 8px; font: 15px Tahoma, Verdana, sans-serif; white-space: nowrap;
+    box-shadow: 2px 2px 0 rgba(0,0,0,.25); pointer-events: none;
+  }
+  .hot.tip-up[data-tip]:hover::before { top: auto; bottom: calc(100% + 6px); }
+  .hot.tip-left[data-tip]:hover::before { left: auto; right: 0; transform: none; }
+
+  /* ---------- little pink "window" used for the rating and the intro ---------- */
+  .win { background: #ffe3f2; border: 3px solid var(--hot); box-shadow: 6px 6px 0 rgba(122,18,80,.3); }
+  .win .bar { background: linear-gradient(90deg, var(--hot), #ff8fc8); color: #fff; font: 700 20px "Silkscreen", Tahoma; padding: 6px 12px; text-align: left; }
+  .win .body { padding: 22px 26px 24px; text-align: center; font-size: 20px; }
+  .btn {
+    font: 700 20px "Silkscreen", Tahoma; color: #fff; cursor: pointer; padding: 9px 26px;
+    background: linear-gradient(#ff8fc8, var(--hot)); border: 3px solid #fff; outline: 2px solid var(--hot); border-radius: 8px;
+  }
+  .btn:hover { filter: brightness(1.1); } .btn:active { transform: translateY(2px); }
+
+  #rating { position: absolute; left: 482px; top: 400px; width: 520px; z-index: 40; transform: translate(-50%, -50%) scale(.7); left: 482px; opacity: 0; pointer-events: none; transition: all .2s; }
+  #rating.show { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  #stars { font-size: 52px; letter-spacing: 6px; color: #ffc428; -webkit-text-stroke: 2px #c98a00; line-height: 1.1; }
+  #stars .dim { color: #f6d3e4; -webkit-text-stroke: 2px #e6a9c9; }
+  #rate-msg { margin: 12px 0 18px; }
+
+  #toast { position: absolute; left: 482px; top: 214px; z-index: 45; transform: translate(-50%, -80px); background: #ffffe1; border: 1px solid #000; color: #000; padding: 6px 14px; font-size: 18px; box-shadow: 3px 3px 0 rgba(0,0,0,.25); transition: transform .25s; white-space: nowrap; }
+  #toast.show { transform: translate(-50%, 0); }
+
+  #intro { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(255, 190, 225, .82); transition: opacity .4s; }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  #intro .win { width: 560px; }
+  #intro h1 { font: 700 44px "Silkscreen", Tahoma; color: var(--hot); margin: 0 0 6px; }
+  #intro p { margin: 0 0 20px; }
+  #loadbar { width: 360px; height: 24px; margin: 0 auto; border: 3px solid var(--hot); background: #fff; }
+  #loadfill { height: 100%; width: 0; background: repeating-linear-gradient(90deg, var(--hot) 0 14px, #fff 14px 18px); transition: width .2s; }
+  #playbtn { display: none; font-size: 30px; padding: 12px 54px; }
+
+  /* sparkles: drawn shapes, no text symbols */
+  .spark { position: absolute; z-index: 50; width: 18px; height: 18px; pointer-events: none; background: #fff;
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+    filter: drop-shadow(0 0 3px #ff5fb4); animation: spark .7s ease-out forwards; }
+  .spark.p { background: #ff7ac1; }
+  @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2) rotate(120deg); opacity: 0; } }
+
+  /* hidden music player */
+  #music { position: absolute; left: 0; top: 0; width: 200px; height: 200px; opacity: .01; pointer-events: none; z-index: -1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="music"><div id="ytplayer"></div></div>
+  <div id="title">Dress Up</div>
+
+  <div id="scene">
+    <img id="bg" class="none" alt="">
+    <div id="floor-shadow"></div>
+    <div id="doll"><canvas id="base" width="971" height="1620" aria-label="Doll"></canvas></div>
+    <div id="place-name"></div>
+  </div>
+
+  <div id="tray"></div>
+
+  <!-- top row of the frame -->
+  <button class="hot" id="loadBtn"  style="left:578px;  top:20px; width:78px;  height:66px" data-tip="Open my saved look"></button>
+  <button class="hot" id="placeBtn" style="left:670px;  top:16px; width:80px;  height:70px" data-tip="Change the place"></button>
+  <button class="hot" id="randBtn"  style="left:764px;  top:16px; width:88px;  height:70px" data-tip="Surprise me"></button>
+  <button class="hot" id="musicBtn" style="left:866px;  top:16px; width:70px;  height:70px" data-tip="Music on / off"></button>
+  <button class="hot" id="saveBtn"  style="left:958px;  top:18px; width:70px;  height:68px" data-tip="Save this look"></button>
+  <button class="hot" id="photoBtn" style="left:1048px; top:18px; width:80px;  height:68px" data-tip="Take a photo"></button>
+  <button class="hot" id="rateBtn"  style="left:1176px; top:20px; width:134px; height:62px" data-tip="Rate my look"></button>
+  <!-- second row: the undo arrow takes everything off -->
+  <button class="hot" id="resetBtn" style="left:520px;  top:102px; width:42px; height:40px" data-tip="Take everything off"></button>
+  <button class="hot" id="newBtn"   style="left:90px;   top:102px; width:42px; height:40px" data-tip="Start over"></button>
+
+  <!-- the four round closet buttons -->
+  <button class="hot round cat" data-cat="tops"    style="left:997px;  top:201px; width:88px; height:88px" data-tip="Tops and coats"></button>
+  <button class="hot round cat" data-cat="bottoms" style="left:1106px; top:201px; width:88px; height:88px" data-tip="Bottoms"></button>
+  <button class="hot round cat" data-cat="shoes"   style="left:1214px; top:201px; width:88px; height:88px" data-tip="Shoes"></button>
+  <button class="hot round cat tip-left" data-cat="extras" style="left:1320px; top:201px; width:88px; height:88px" data-tip="Bags and shades"></button>
+
+  <!-- scroll arrows and the bottom strip -->
+  <button class="hot tip-left" id="upBtn"   style="left:1490px; top:296px; width:34px; height:36px" data-tip="Scroll up"></button>
+  <button class="hot tip-left tip-up" id="downBtn" style="left:1490px; top:888px; width:34px; height:38px" data-tip="Scroll down"></button>
+  <button class="hot tip-up" id="prevPlace" style="left:976px;  top:940px; width:56px; height:50px" data-tip="Previous place"></button>
+  <button class="hot tip-up tip-left" id="nextPlace" style="left:1460px; top:940px; width:56px; height:50px" data-tip="Next place"></button>
+
+  <div id="rating" class="win">
+    <div class="bar">Your look</div>
+    <div class="body">
+      <div id="stars"></div>
+      <div id="rate-msg"></div>
+      <button class="btn" id="rateClose">OK</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+
+  <div id="intro">
+    <div class="win">
+      <div class="bar">Loading...</div>
+      <div class="body">
+        <h1 id="introTitle">Dress Up</h1>
+        <p>Pick her outfit for a day out</p>
+        <div id="loadbar"><div id="loadfill"></div></div>
+        <button class="btn" id="playbtn">PLAY</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== SETTINGS ===================== */
+const GAME_TITLE = "Dress Up";               // shown at the top left and on the loading window
+const MUSIC_VIDEO_ID = "vrHlQYr4sM0";        // YouTube video played (sound only) as background music
+const MUSIC_VOLUME = 55;                     // 0-100
+
+/* ===================== GAME DATA =====================
+   To add a new item: drop a 971x1620 transparent PNG in /assets (drawn in place
+   on the doll) and add a line below. `box` is the visible area [x, y, w, h] of
+   the catalogue picture, used to zoom the thumbnail. */
+const CANVAS_W = 971, CANVAS_H = 1620;
+const FRAME = { src: "assets/ui-frame.webp", scene: [12, 200, 940, 807] };   // where the scene sits on the frame picture
+
+const SLOTS = { shoes: 1, bottom: 2, top: 3, dress: 3, coat: 4, bag: 5, eyes: 6 };   // draw order (higher = on top)
+
+// the four round buttons on the frame, and which kinds of item each one shows
+const CATEGORIES = {
+  tops:    [["top", "Tops"], ["dress", "Dresses"], ["coat", "Coats"]],
+  bottoms: [["bottom", "Bottoms"]],
+  shoes:   [["shoes", "Shoes"]],
+  extras:  [["bag", "Bags"], ["eyes", "Shades"]],
+};
+
+/* Extra item options:
+     hide: [x0, y0, x1, y1]  erases that part of the doll while the item is on
+                             (e.g. her bare feet inside boots, legs inside jeans)
+     back: true              the item also has an "<id>-back.png" drawn BEHIND the doll
+     hideTank: true          paints skin over her pink tank (for tops that don't cover it)
+     thumb: "file"           a different picture for the closet thumbnail
+     clip: "file"            a silhouette; tops, dresses and bottoms are tucked inside it
+                             (so wide sleeves and skirts don't poke out of a coat) */
+const ITEMS = [
+  { id: "top-peasant",         slot: "top",    name: "Peasant Top",    box: [291, 391, 388, 388], thumb: "assets/thumbs/top-peasant.png" },
+  { id: "top-paisley",         slot: "top",    name: "Paisley Tunic",  box: [278, 325, 413, 397], hideTank: true, thumb: "assets/thumbs/top-paisley.png" },
+  { id: "top-blossom",         slot: "top",    name: "Blossom Cami",   box: [358, 321, 242, 484], thumb: "assets/thumbs/top-blossom.png" },
+  { id: "bottom-flare-jeans",  slot: "bottom", name: "Flare Jeans",    box: [276, 668, 412, 931], hide: [330, 735, 640, 1540], thumb: "assets/thumbs/bottom-flare-jeans.png" },
+  { id: "bottom-denim-mini",   slot: "bottom", name: "Denim Mini",     box: [344, 677, 282, 155], thumb: "assets/thumbs/bottom-denim-mini.png" },
+  { id: "bottom-pleated-mini", slot: "bottom", name: "Pleated Mini",   box: [324, 680, 322, 172], thumb: "assets/thumbs/bottom-pleated-mini.png" },
+  { id: "bottom-ruffle-skirt", slot: "bottom", name: "Ruffle Skirt",   box: [318, 653, 337, 797], thumb: "assets/thumbs/bottom-ruffle-skirt.png" },
+  { id: "coat-fur",            slot: "coat",   name: "Fur Trim Coat",  box: [223, 270, 510, 888], back: true, clip: "assets/coat-fur-clip.png" },
+  { id: "shoes-buckle-boots",  slot: "shoes",  name: "Buckle Boots",   box: [299, 1115, 348, 487], hide: [0, 1135, 971, 1620], thumb: "assets/thumbs/shoes-buckle-boots.png" },
+  { id: "shoes-western-boots", slot: "shoes",  name: "Suede Boots",    box: [319, 1338, 295, 266], hide: [0, 1362, 971, 1620] },
+  { id: "shoes-sandals",       slot: "shoes",  name: "Strappy Sandals", box: [337, 1489, 257, 117] },
+  { id: "shoes-slides",        slot: "shoes",  name: "Buckle Slides",  box: [333, 1530, 265, 77] },
+  { id: "bag-piano",           slot: "bag",    name: "Piano Purse",    box: [411, 323, 250, 491] },
+  { id: "bag-floral",          slot: "bag",    name: "Flower Hobo",    box: [537, 314, 196, 453] },
+  { id: "bag-saddle",          slot: "bag",    name: "Saddle Bag",     box: [531, 317, 171, 465] },
+  { id: "bag-black",           slot: "bag",    name: "Daisy Bag",      box: [536, 323, 147, 411] },
+  { id: "shades-diva",         slot: "eyes",   name: "Diva Shades",    box: [395, 139, 176, 70] },
+  { id: "shades-cateye",       slot: "eyes",   name: "Cat-Eye",        box: [394, 143, 181, 46] },
+  { id: "shades-slim",         slot: "eyes",   name: "Slim Shades",    box: [401, 144, 169, 38] },
+].map(it => ({ ...it, src: `assets/${it.id}.png`, backSrc: it.back ? `assets/${it.id}-back.png` : null }));
+const itemById = id => ITEMS.find(i => i.id === id);
+
+const BACKGROUNDS = [
+  { id: "studio",  name: "Studio",   src: "" },                       // the frame's own backdrop
+  { id: "bedroom", name: "My Room",  src: "assets/bg-bedroom.webp" },
+  { id: "mall",    name: "The Mall", src: "assets/bg-mall.webp" },
+];
+
+const COMPLIMENTS = [
+  ["She's still in her PJs!", "Add some pieces."],
+  ["Cute start!", "Keep layering."],
+  ["That's giving mall day!", "So fetch."],
+  ["Totally hot!", "The paparazzi are coming."],
+  ["ICONIC.", "Red carpet ready."],
+];
+
+/* ===================== STATE ===================== */
+const worn = {};               // slot -> item id
+let currentCat = "tops";
+let currentBg = "studio";
+
+const $ = s => document.querySelector(s);
+const doll = $("#doll"), tray = $("#tray"), stage = $("#stage");
+$("#title").textContent = $("#introTitle").textContent = document.title = GAME_TITLE;
+
+/* ===================== SOUND EFFECTS (tiny synth, no files needed) ===================== */
+let actx;
+function chime(notes, type = "triangle") {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    notes.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i * 0.07;
+      o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.07, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.35);
+    });
+  } catch (e) {}
+}
+const sfx = {
+  on:    () => chime([988, 1319, 1760]),
+  off:   () => chime([660, 440], "sine"),
+  click: () => chime([1200], "square"),
+  magic: () => chime([784, 988, 1175, 1568, 1976]),
+};
+
+/* ===================== BACKGROUND MUSIC (YouTube player, sound only) ===================== */
+let yt = null, ytReady = false, musicOn = true, musicStarted = false, musicBroken = false;
+(function loadMusic() {
+  const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api";
+  s.onerror = () => { musicBroken = true; };
+  document.head.appendChild(s);
+})();
+window.onYouTubeIframeAPIReady = () => {
+  yt = new YT.Player("ytplayer", {
+    width: 200, height: 200, videoId: MUSIC_VIDEO_ID,
+    playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: MUSIC_VIDEO_ID, playsinline: 1, rel: 0 },
+    events: {
+      onReady: () => { ytReady = true; yt.setVolume(MUSIC_VOLUME); if (musicStarted && musicOn) yt.playVideo(); },
+      onStateChange: e => { if (e.data === YT.PlayerState.ENDED && musicOn) yt.playVideo(); },
+      onError: () => { musicBroken = true; toast("The song could not be played here"); $("#musicBtn").classList.add("off"); },
+    },
+  });
+};
+function startMusic() { musicStarted = true; if (ytReady && musicOn) yt.playVideo(); }
+function toggleMusic() {
+  if (musicBroken) { toast("The song could not be played here"); return; }
+  musicOn = !musicOn; $("#musicBtn").classList.toggle("off", !musicOn);
+  if (ytReady) { musicOn ? yt.playVideo() : yt.pauseVideo(); }
+  toast(musicOn ? "Music on" : "Music off");
+}
+
+/* ===================== THE DOLL ===================== */
+/* She is painted on a canvas so parts of her can be erased (feet inside boots,
+   legs inside jeans) and her tank / shorts hidden under clothes. */
+const baseCanvas = $("#base"), bctx = baseCanvas.getContext("2d");
+const dollImg = new Image(), patchImg = new Image(), tankPatchImg = new Image();
+dollImg.onload = patchImg.onload = tankPatchImg.onload = () => drawBase();
+dollImg.src = "assets/doll.png"; patchImg.src = "assets/body-noshorts.png"; tankPatchImg.src = "assets/body-notank.png";
+
+function drawBase() {
+  bctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  if (!dollImg.naturalWidth) return;
+  bctx.drawImage(dollImg, 0, 0, CANVAS_W, CANVAS_H);
+  // only change her body once the item's own picture is on screen, so she is never shown half-dressed
+  const ready = id => { const im = doll.querySelector(`img[data-key="${id}"]`); return im && im.complete && im.naturalWidth; };
+  const on = Object.values(worn).filter(ready);
+  if (worn.bottom && ready(worn.bottom) && patchImg.naturalWidth) bctx.drawImage(patchImg, 0, 0, CANVAS_W, CANVAS_H);
+  if (on.some(id => itemById(id).hideTank) && tankPatchImg.naturalWidth) bctx.drawImage(tankPatchImg, 0, 0, CANVAS_W, CANVAS_H);
+  for (const id of on) {
+    const h = itemById(id).hide;
+    if (h) bctx.clearRect(h[0], h[1], h[2] - h[0], h[3] - h[1]);
+  }
+}
+
+function renderDoll() {
+  const stale = new Set(doll.querySelectorAll("img.layer"));
+  const clip = Object.values(worn).map(id => itemById(id).clip).find(Boolean) || "";
+  const place = (key, src, behind, slot) => {
+    let img = doll.querySelector(`img[data-key="${key}"]`);
+    if (img) stale.delete(img);
+    else {
+      img = new Image(); img.className = "layer"; img.dataset.key = key; img.src = src; img.alt = "";
+      img.addEventListener("animationend", () => img.classList.add("settled"));
+      img.addEventListener("load", drawBase);
+    }
+    const mask = clip && ["top", "dress", "bottom"].includes(slot) ? `url(${clip})` : "";
+    img.style.webkitMaskImage = img.style.maskImage = mask;
+    img.style.webkitMaskSize = img.style.maskSize = "100% 100%";
+    img.dataset.clip = mask ? clip : "";
+    if (behind) doll.insertBefore(img, baseCanvas); else doll.appendChild(img);  // moves existing nodes into order
+  };
+  const order = Object.entries(worn).sort((a, b) => SLOTS[a[0]] - SLOTS[b[0]]).map(([, id]) => itemById(id));
+  order.filter(it => it.backSrc).forEach(it => place(it.id + "-back", it.backSrc, true));
+  order.forEach(it => place(it.id, it.src, false, it.slot));
+  stale.forEach(n => n.remove());
+  drawBase();
+}
+
+/* ===================== CLOSET ===================== */
+function renderCats() {
+  document.querySelectorAll(".cat").forEach(b => b.classList.toggle("active", b.dataset.cat === currentCat));
+}
+
+function renderTray(keepScroll) {
+  const top = tray.scrollTop;
+  const groups = CATEGORIES[currentCat].map(([slot, label]) => [label, ITEMS.filter(i => i.slot === slot)]).filter(g => g[1].length);
+  tray.innerHTML = groups.map(([label, items]) =>
+    (groups.length > 1 ? `<div class="section">${label}</div>` : "") +
+    items.map(i => `
+      <div class="item ${worn[i.slot] === i.id ? "on" : ""}" data-item="${i.id}">
+        <div class="thumb" data-box="${i.box.join(",")}" style="background-image:url(${i.thumb || i.src})"></div>
+        <div class="lbl">${i.name}</div>
+      </div>`).join("")
+  ).join("");
+  tray.querySelectorAll(".thumb").forEach(t => {            // zoom each picture onto the item itself
+    const [x, y, w, h] = t.dataset.box.split(",").map(Number);
+    const r = { w: t.clientWidth, h: t.clientHeight }, s = Math.min(r.w / w, r.h / h) * 0.94;
+    t.style.backgroundSize = `${CANVAS_W * s}px ${CANVAS_H * s}px`;
+    t.style.backgroundPosition = `${(r.w - w * s) / 2 - x * s}px ${(r.h - h * s) / 2 - y * s}px`;
+  });
+  tray.style.scrollBehavior = "auto"; tray.scrollTop = keepScroll ? top : 0; tray.style.scrollBehavior = "";
+}
+
+function setBg(id) {
+  currentBg = id;
+  const b = BACKGROUNDS.find(x => x.id === id), img = $("#bg");
+  if (b.src) { img.src = b.src; img.classList.remove("none"); } else img.classList.add("none");
+  $("#place-name").textContent = b.name;
+}
+function stepBg(d) {
+  const i = BACKGROUNDS.findIndex(b => b.id === currentBg);
+  setBg(BACKGROUNDS[(i + d + BACKGROUNDS.length) % BACKGROUNDS.length].id); sfx.on();
+}
+
+/* ===================== ACTIONS ===================== */
+function toggleItem(id) {
+  const it = itemById(id);
+  if (worn[it.slot] === id) { delete worn[it.slot]; sfx.off(); }
+  else {
+    worn[it.slot] = id;
+    if (it.slot === "dress") { delete worn.top; delete worn.bottom; }      // a dress replaces a top + bottom, and vice versa
+    if (it.slot === "top" || it.slot === "bottom") delete worn.dress;
+    sfx.on();
+  }
+  renderDoll(); renderTray(true);
+}
+
+function clearAll() { Object.keys(worn).forEach(k => delete worn[k]); }
+
+function randomize() {
+  clearAll();
+  const pick = slot => { const a = ITEMS.filter(i => i.slot === slot); return a.length ? a[Math.floor(Math.random() * a.length)].id : null; };
+  const put = (slot, chance = 1) => { const id = Math.random() < chance ? pick(slot) : null; if (id) worn[slot] = id; };
+  put("top"); put("bottom"); put("shoes"); put("bag", 0.6); put("coat", 0.3); put("eyes", 0.4);
+  setBg(BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)].id);
+  sfx.magic(); burstAtDoll(20);
+  renderDoll(); renderTray(true);
+}
+
+function rateLook() {
+  const n = Object.keys(worn).length;
+  let score = n === 0 ? 0 : Math.min(4, Math.ceil(n * 0.8));
+  if ((worn.top && worn.bottom) || worn.dress) score = Math.max(score, 2);
+  const stars = score + 1;
+  $("#stars").innerHTML = "★".repeat(stars) + `<span class="dim">${"★".repeat(5 - stars)}</span>`;
+  $("#rate-msg").innerHTML = `<b>${COMPLIMENTS[score][0]}</b><br>${COMPLIMENTS[score][1]}`;
+  $("#rating").classList.add("show");
+  sfx.magic(); if (stars >= 4) burstAtDoll(26);
+}
+
+function saveLook() {
+  try { localStorage.setItem("dressup-look", JSON.stringify({ worn, bg: currentBg })); toast("Look saved"); sfx.magic(); }
+  catch (e) { toast("This browser would not let me save"); }
+}
+function loadLook() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem("dressup-look")); } catch (e) {}
+  if (!d) { toast("No saved look yet - use the disk to save one"); return; }
+  clearAll();
+  Object.entries(d.worn || {}).forEach(([slot, id]) => { if (itemById(id)) worn[slot] = id; });
+  if (BACKGROUNDS.some(b => b.id === d.bg)) setBg(d.bg);
+  renderDoll(); renderTray(true); toast("Saved look opened"); sfx.magic(); burstAtDoll(16);
+}
+
+async function savePhoto() {
+  const [fx, fy, W, H] = FRAME.scene;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  try {
+    const b = BACKGROUNDS.find(b => b.id === currentBg);
+    if (b.src) {
+      const bg = await load(b.src), s = Math.max(W / bg.width, H / bg.height);
+      x.drawImage(bg, (W - bg.width * s) / 2, (H - bg.height * s) / 2, bg.width * s, bg.height * s);
+    } else x.drawImage(await load(FRAME.src), fx, fy, W, H, 0, 0, W, H);       // the frame's own backdrop
+    const dh = 780, dw = dh * CANVAS_W / CANVAS_H, dx = (W - dw) / 2, dy = H - dh - 12;
+    for (const el of doll.children) {             // back layers, doll canvas, clothes - in order
+      let src = el;
+      if (el.dataset && el.dataset.clip) {         // tucked-in layer: cut it to the coat silhouette first
+        const t = document.createElement("canvas"); t.width = CANVAS_W; t.height = CANVAS_H;
+        const tx = t.getContext("2d"); tx.drawImage(el, 0, 0, CANVAS_W, CANVAS_H);
+        tx.globalCompositeOperation = "destination-in"; tx.drawImage(await load(el.dataset.clip), 0, 0, CANVAS_W, CANVAS_H);
+        src = t;
+      }
+      x.drawImage(src, dx, dy, dw, dh);
+    }
+    const a = document.createElement("a");
+    a.download = "my-look.png"; a.href = c.toDataURL("image/png"); a.click();
+    toast("Photo saved"); sfx.magic();
+  } catch (e) {
+    toast("Photos only work when the game is opened from a web address");
+  }
+}
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ===================== SPARKLES ===================== */
+function stagePoint(clientX, clientY) {
+  const r = stage.getBoundingClientRect(), k = r.width / stage.offsetWidth;
+  return [(clientX - r.left) / k, (clientY - r.top) / k];
+}
+function burst(px, py, n = 8) {
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement("div"); s.className = "spark" + (i % 2 ? " p" : "");
+    const ang = Math.random() * Math.PI * 2, d = 40 + Math.random() * 90, size = 12 + Math.random() * 18;
+    s.style.left = px - size / 2 + "px"; s.style.top = py - size / 2 + "px"; s.style.width = s.style.height = size + "px";
+    s.style.setProperty("--dx", Math.cos(ang) * d + "px"); s.style.setProperty("--dy", Math.sin(ang) * d + "px");
+    stage.appendChild(s); setTimeout(() => s.remove(), 750);
+  }
+}
+function burstAtDoll(n) {
+  const r = doll.getBoundingClientRect();
+  for (let i = 0; i < 4; i++) {
+    const [px, py] = stagePoint(r.left + Math.random() * r.width, r.top + Math.random() * r.height);
+    burst(px, py, Math.ceil(n / 4));
+  }
+}
+
+/* ===================== EVENTS ===================== */
+document.querySelectorAll(".cat").forEach(b => b.onclick = () => { currentCat = b.dataset.cat; sfx.click(); renderCats(); renderTray(); });
+tray.addEventListener("click", e => { const it = e.target.closest(".item"); if (it) toggleItem(it.dataset.item); });
+$("#placeBtn").onclick = $("#nextPlace").onclick = () => stepBg(1);
+$("#prevPlace").onclick = () => stepBg(-1);
+$("#randBtn").onclick = randomize;
+$("#resetBtn").onclick = $("#newBtn").onclick = () => { clearAll(); sfx.off(); renderDoll(); renderTray(true); };
+$("#rateBtn").onclick = rateLook;
+$("#rateClose").onclick = () => { $("#rating").classList.remove("show"); sfx.click(); };
+$("#photoBtn").onclick = savePhoto;
+$("#saveBtn").onclick = saveLook;
+$("#loadBtn").onclick = loadLook;
+$("#musicBtn").onclick = toggleMusic;
+$("#upBtn").onclick = () => tray.scrollBy({ top: -340 });
+$("#downBtn").onclick = () => tray.scrollBy({ top: 340 });
+stage.addEventListener("pointerdown", e => { const [x, y] = stagePoint(e.clientX, e.clientY); burst(x, y, 6); });
+
+/* scale the fixed-size frame to fit any window, like an embedded Flash movie */
+function fit() { stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / 1560, innerHeight / 1044)})`; }
+addEventListener("resize", fit); fit();
+
+/* ===================== PRELOADER ===================== */
+(function preload() {
+  const srcs = [FRAME.src, "assets/doll.png", "assets/body-noshorts.png", "assets/body-notank.png",
+    ...ITEMS.flatMap(i => [i.src, i.backSrc, i.clip, i.thumb].filter(Boolean)), ...BACKGROUNDS.filter(b => b.src).map(b => b.src)];
+  let done = 0;
+  srcs.forEach(src => {
+    const i = new Image();
+    i.onload = i.onerror = () => {
+      done++; $("#loadfill").style.width = (done / srcs.length * 100) + "%";
+      if (done === srcs.length) { $("#loadbar").style.display = "none"; $("#playbtn").style.display = "inline-block"; $("#intro .bar").textContent = "Ready"; }
+    };
+    i.src = src;
+  });
+})();
+$("#playbtn").onclick = () => { $("#intro").classList.add("gone"); sfx.magic(); startMusic(); setTimeout(() => burstAtDoll(20), 200); };
+
+renderCats(); setBg("studio"); renderTray(); renderDoll();
+</script>
+</body>
+</html>
